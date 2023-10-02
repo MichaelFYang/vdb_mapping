@@ -31,31 +31,76 @@
 
 namespace vdb_mapping {
 
-bool OccupancyVDBMapping::updateFreeNode(float& voxel_value, bool& active)
+bool OccupancyVDBMapping::updateFreeNode(Voxel& voxel_value, bool& active)
 {
-  voxel_value += m_logodds_miss;
-  if (voxel_value < m_logodds_thres_min)
+  voxel_value.probs += m_logodds_miss;
+  if (voxel_value.probs < m_logodds_thres_min)
   {
     active = false;
-    if (voxel_value < m_min_logodds)
+    if (voxel_value.probs < m_min_logodds)
     {
-      voxel_value = m_min_logodds;
+      voxel_value.probs = m_min_logodds;
     }
   }
   return true;
 }
 
-bool OccupancyVDBMapping::updateOccupiedNode(float& voxel_value, bool& active)
+void OccupancyVDBMapping::updateSemanticLabel(Voxel& voxel_value, const Voxel& update_value) 
 {
-  voxel_value += m_logodds_hit;
-  if (voxel_value > m_logodds_thres_max)
+    // Update the queue for semantic labels
+    voxel_value.s_h.push(update_value.semantic);
+    if (voxel_value.s_h.size() > m_queue_size)
+    {
+        voxel_value.s_h.pop();
+    }
+
+    // Find the most frequent semantic label and update the voxel_value.semantic
+    std::unordered_map<int, int> s_map;
+    std::queue<int> temp_queue = voxel_value.s_h;  // Create a copy of the original queue
+
+    while (!temp_queue.empty())
+    {
+        s_map[temp_queue.front()]++;
+        temp_queue.pop();
+    }
+
+    int max = 0;
+    for (auto& it : s_map)
+    {
+        if (it.second > max)
+        {
+            max = it.second;
+            voxel_value.semantic = it.first;
+        }
+    }
+}
+
+bool OccupancyVDBMapping::updateOccupiedNode(Voxel& update_value, Voxel& voxel_value, bool& active)
+{
+  voxel_value.probs += m_logodds_hit;
+  if (voxel_value.probs > m_logodds_thres_max)
   {
     active = true;
-    if (voxel_value > m_max_logodds)
+    if (voxel_value.probs > m_max_logodds)
     {
-      voxel_value = m_max_logodds;
+      voxel_value.probs = m_max_logodds;
     }
   }
+  if (active)
+  {
+    // normalize color
+    const float s = update_value.r + update_value.g + update_value.b;
+    update_value.r /= s;
+    update_value.g /= s;
+    update_value.b /= s;
+    // update color
+    voxel_value.r = (voxel_value.r + update_value.r) / 2;
+    voxel_value.g = (voxel_value.g + update_value.g) / 2;
+    voxel_value.b = (voxel_value.b + update_value.b) / 2;
+    // update the queue for semantic labels
+    updateSemanticLabel(voxel_value, update_value);
+  }
+
   return true;
 }
 

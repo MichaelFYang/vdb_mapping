@@ -37,19 +37,38 @@ namespace vdb_mapping {
  */
 struct Config : BaseConfig
 {
+  double queue_size;
   double prob_hit;
   double prob_miss;
   double prob_thres_min;
   double prob_thres_max;
 };
 
-class OccupancyVDBMapping : public VDBMapping<float, Config>
+struct Voxel : BaseVoxel
+{
+  Voxel()
+    : BaseVoxel()
+    , r(0.0)
+    , g(0.0)
+    , b(0.0)
+    , semantic(-1)
+  {
+  }
+  float r, g, b;
+  int semantic;
+  // add history queue for semantic labels
+  std::queue<int> s_h;
+};
+
+class OccupancyVDBMapping : public VDBMapping<Voxel, Config>
 {
 public:
   OccupancyVDBMapping(const double resolution)
-    : VDBMapping<float, Config>(resolution)
+    : VDBMapping<Voxel, Config>(resolution)
   {
   }
+
+  using PointT = pcl::PointXYZRGBA;
 
   /*!
    * \brief Handles changing the mapping config
@@ -59,8 +78,9 @@ public:
   void setConfig(const Config& config) override;
 
 protected:
-  bool updateFreeNode(float& voxel_value, bool& active) override;
-  bool updateOccupiedNode(float& voxel_value, bool& active) override;
+  bool updateFreeNode(Voxel& voxel_value, bool& active) override;
+  bool updateOccupiedNode(Voxel& update_value, Voxel& voxel_value, bool& active) override;
+  Voxel craeteVoxelFromPoint(const PointT& p) override;
 
   /*!
    * \brief Probability update value for passing an obstacle
@@ -86,6 +106,15 @@ protected:
    * \brief Minimum clamping point for logodds
    */
   float m_min_logodds;
+
+  /*!
+   * \brief Size of the history queue
+   */
+  float m_queue_size;
+
+private:
+  /* udpate semantic label */
+  void updateSemanticLabel(Voxel& voxel_value, const Voxel& update_value);
 };
 
 } // namespace vdb_mapping

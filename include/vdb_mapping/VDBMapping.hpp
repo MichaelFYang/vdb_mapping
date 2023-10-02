@@ -440,9 +440,10 @@ VDBMapping<TData, TConfig>::updateMap(const UpdateGridT::Ptr& temp_grid)
   };
 
   // Probability update lambda for occupied grid elements
+  TData update_value; // values to be updated
   auto hit = [&](TData& voxel_value, bool& active) {
     bool last_state = active;
-    updateOccupiedNode(voxel_value, active);
+    updateOccupiedNode(update_value, voxel_value, active);
     if (last_state != active)
     {
       state_changed = true;
@@ -455,6 +456,7 @@ VDBMapping<TData, TConfig>::updateMap(const UpdateGridT::Ptr& temp_grid)
     state_changed = false;
     if (*iter)
     {
+      // TODO: update the TData value
       acc.modifyValueAndActiveState(iter.getCoord(), hit);
       if (state_changed)
       {

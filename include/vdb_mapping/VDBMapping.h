@@ -35,6 +35,8 @@
 #include <pcl/point_types.h>
 
 #include <chrono>
+#include <queue>
+#include <unordered_map>
 #include <eigen3/Eigen/Geometry>
 
 #include <openvdb/Types.h>
@@ -56,15 +58,24 @@ struct BaseConfig
   double max_range;
   std::string map_directory_path;
 };
+
+struct BaseVoxel 
+{
+    BaseVoxel() : probs(0) {}
+
+    float probs;
+};
+
+using PointT = pcl::PointXYZRGBA;
+using PointCloudT = pcl::PointCloud<PointT>;
+
 /*!
  * \brief Main Mapping class which handles all data integration
  */
-template <typename TData, typename TConfig = BaseConfig>
+template <typename TData = BaseVoxel, typename TConfig = BaseConfig>
 class VDBMapping
 {
 public:
-  using PointT      = pcl::PointXYZ;
-  using PointCloudT = pcl::PointCloud<PointT>;
 
   using RayT  = openvdb::math::Ray<double>;
   using Vec3T = RayT::Vec3Type;
@@ -358,7 +369,8 @@ public:
 
 protected:
   virtual bool updateFreeNode(TData& voxel_value, bool& active) { return false; }
-  virtual bool updateOccupiedNode(TData& voxel_value, bool& active) { return false; }
+  virtual bool updateOccupiedNode(TData& update_value, TData& voxel_value, bool& active) { return false; }
+  virtual TData craeteVoxelFromPoint(const PointT& p) { return TData(); }
   /*!
    * \brief VDB grid pointer
    */
