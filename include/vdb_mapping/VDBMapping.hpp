@@ -44,8 +44,13 @@ VDBMapping<TData, TConfig>::VDBMapping(const double resolution)
   {
     UpdateGridT::registerGrid();
   }
+  if (!ValueGridT::isRegistered())
+  {
+    ValueGridT::registerGrid();
+  }
   m_vdb_grid    = createVDBMap(m_resolution);
   m_update_grid = UpdateGridT::create(false);
+  m_value_grid  = ValueGridT::create(openvdb::Vec3d());
 }
 
 template <typename TData, typename TConfig>
@@ -54,6 +59,7 @@ void VDBMapping<TData, TConfig>::resetMap()
   m_vdb_grid->clear();
   m_vdb_grid    = createVDBMap(m_resolution);
   m_update_grid = UpdateGridT::create(false);
+  m_value_grid  = ValueGridT::create(openvdb::Vec3d());
 }
 
 
@@ -280,13 +286,14 @@ void VDBMapping<TData, TConfig>::accumulateUpdate(const PointCloudT::ConstPtr& c
                                                   const double& max_range)
 {
   UpdateGridT::Accessor update_grid_acc = m_update_grid->getAccessor();
+  ValueGridT::Accessor value_grid_acc   = m_value_grid->getAccessor();
   if (max_range > 0)
   {
-    raycastPointCloud(cloud, origin, max_range, update_grid_acc);
+    raycastPointCloud(cloud, origin, max_range, update_grid_acc, value_grid_acc);
   }
   else
   {
-    raycastPointCloud(cloud, origin, update_grid_acc);
+    raycastPointCloud(cloud, origin, update_grid_acc, value_grid_acc);
   }
 }
 
@@ -302,14 +309,16 @@ template <typename TData, typename TConfig>
 void VDBMapping<TData, TConfig>::resetUpdate()
 {
   m_update_grid = UpdateGridT::create(false);
+  m_value_grid  = ValueGridT::create(openvdb::Vec3d());
 }
 
 template <typename TData, typename TConfig>
 bool VDBMapping<TData, TConfig>::raycastPointCloud(const PointCloudT::ConstPtr& cloud,
                                                    const Eigen::Matrix<double, 3, 1>& origin,
-                                                   UpdateGridT::Accessor& update_grid_acc)
+                                                   UpdateGridT::Accessor& update_grid_acc,
+                                                   ValueGridT::Accessor& value_grid_acc)
 {
-  return raycastPointCloud(cloud, origin, m_max_range, update_grid_acc);
+  return raycastPointCloud(cloud, origin, m_max_range, update_grid_acc, value_grid_acc);
 }
 
 
@@ -317,7 +326,8 @@ template <typename TData, typename TConfig>
 bool VDBMapping<TData, TConfig>::raycastPointCloud(const PointCloudT::ConstPtr& cloud,
                                                    const Eigen::Matrix<double, 3, 1>& origin,
                                                    const double raycast_range,
-                                                   UpdateGridT::Accessor& update_grid_acc)
+                                                   UpdateGridT::Accessor& update_grid_acc,
+                                                   ValueGridT::Accessor& value_grid_acc)
 {
   // Creating a temporary grid in which the new data is casted. This way we prevent the computation
   // of redundant probability updates in the actual map
@@ -347,16 +357,19 @@ bool VDBMapping<TData, TConfig>::raycastPointCloud(const PointCloudT::ConstPtr& 
 
     if (raycast_range > 0.0 && (ray_end_world - ray_origin_world).length() > raycast_range)
     {
-      ray_end_world = ray_origin_world + (ray_end_world - ray_origin_world).unit() * raycast_range;
+      ray_end_world = ray_origin_world + (ray_end_world - ray_origin_world).unit() * raycast_range; // set ray end to max range
       max_range_ray = true;
     }
 
+    // Ray end point in index coordinates -> set the mid points of the ray to active but value false
     openvdb::Coord ray_end_index =
       castRayIntoGrid(ray_origin_world, ray_origin_index, ray_end_world, update_grid_acc);
 
     if (!max_range_ray)
     {
+      // update only the end point in max range case -> set the value to true
       update_grid_acc.setValueOn(ray_end_index, true);
+      value_grid_acc.setValueOn(ray_end_index, openvdb::Vec3d(pt.r, pt.g, pt.b));
     }
   }
   return true;
@@ -418,7 +431,7 @@ bool VDBMapping<TData, TConfig>::raytrace(const openvdb::Vec3d& ray_origin_world
 
 template <typename TData, typename TConfig>
 VDBMapping<TData, TConfig>::UpdateGridT::Ptr
-VDBMapping<TData, TConfig>::updateMap(const UpdateGridT::Ptr& temp_grid)
+VDBMapping<TData, TConfig>::updateMap(const UpdateGridT::Ptr& temp_grid, const ValueGridT::Ptr& value_grid)
 {
   UpdateGridT::Ptr change          = UpdateGridT::create(false);
   UpdateGridT::Accessor change_acc = change->getAccessor();
@@ -431,7 +444,6 @@ VDBMapping<TData, TConfig>::updateMap(const UpdateGridT::Ptr& temp_grid)
   typename GridT::Accessor acc = m_vdb_grid->getAccessor();
 
   TData new_value;
-  
   // Probability update lambda for free space grid elements
   auto miss = [&](TData& voxel_value, bool& active) {
     bool last_state = active;
@@ -456,8 +468,12 @@ VDBMapping<TData, TConfig>::updateMap(const UpdateGridT::Ptr& temp_grid)
   for (UpdateGridT::ValueOnCIter iter = temp_grid->cbeginValueOn(); iter; ++iter)
   {
     state_changed = false;
+    // get coordinate of current grid element
+    openvdb::Coord coord = iter.getCoord();
     if (*iter)
     {
+      const openvdb::Vec3d& value = value_grid->getAccessor().getValue(coord);
+      new_value                   = craeteVoxelFromRGB(value);
       acc.modifyValueAndActiveState(iter.getCoord(), hit);
       if (state_changed)
       {

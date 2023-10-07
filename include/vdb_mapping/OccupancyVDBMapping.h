@@ -63,7 +63,7 @@ public:
 protected:
   bool updateFreeNode(Voxel& voxel_value, bool& active) override;
   bool updateOccupiedNode(Voxel& voxel_value, bool& active, const Voxel& new_value) override;
-  Voxel craeteVoxelFromPoint(const PointT& p) override;
+  Voxel craeteVoxelFromRGB(const openvdb::Vec3f& vec) override;
 
   void updateVoxelField(Voxel& cur_voxel, const Voxel& new_voxel);
 

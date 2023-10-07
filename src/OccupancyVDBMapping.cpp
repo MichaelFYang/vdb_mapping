@@ -60,18 +60,18 @@ bool OccupancyVDBMapping::updateOccupiedNode(Voxel& voxel_value, bool& active, c
   return true;
 }
 
-Voxel OccupancyVDBMapping::craeteVoxelFromPoint(const PointT& point)
+Voxel OccupancyVDBMapping::craeteVoxelFromRGB(const openvdb::Vec3f& vec)
 {
   Voxel voxel;
   voxel.setZero();
-  const float s = (point.r + point.g + point.b);
+  const float s = (vec[0] + vec[1] + vec[2]);
   if (s < 1e-5)
   {
     return voxel; // no color information
   }
-  voxel[0][1] = point.r / s * 3.0;
-  voxel[0][2] = point.g / s * 3.0;
-  voxel[0][3] = point.b / s * 3.0;
+  voxel[0][1] = vec[0] / s * 3.0;
+  voxel[0][2] = vec[1] / s * 3.0;
+  voxel[0][3] = vec[2] / s * 3.0;
   return voxel;
 }
 

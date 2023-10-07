@@ -72,7 +72,7 @@ public:
 
   using GridT       = openvdb::Grid<typename openvdb::tree::Tree4<TData, 5, 4, 3>::Type>;
   using UpdateGridT = openvdb::Grid<openvdb::tree::Tree4<bool, 1, 4, 3>::Type>;
-
+  using ValueGridT  = openvdb::Grid<openvdb::tree::Tree4<openvdb::Vec3f, 1, 4, 3>::Type>;
 
   VDBMapping()                  = delete;
   VDBMapping(const VDBMapping&) = delete;
@@ -176,12 +176,14 @@ public:
    * \param cloud Input sensor point cloud
    * \param origin Origin of the sensor measurement
    * \param update_grid_acc Accessor to the grid in which the raycasting takes place
+   * \param value_grid_acc Accessor to store the point value in which the raycasting takes place
    *
    * \returns Raycasted update grid
    */
   bool raycastPointCloud(const PointCloudT::ConstPtr& cloud,
                          const Eigen::Matrix<double, 3, 1>& origin,
-                         UpdateGridT::Accessor& update_grid_acc);
+                         UpdateGridT::Accessor& update_grid_acc,
+                         ValueGridT::Accessor& value_grid_acc);
 
   /*!
    * \brief  Raycasts a Pointcloud into an update Grid
@@ -196,13 +198,15 @@ public:
    * \param origin Origin of the sensor measurement
    * \param raycast_range Maximum raycasting range
    * \param update_grid_acc Accessor to the grid in which the raycasting takes place
+   * \param value_grid_acc Accessor to store the point value in which the raycasting takes place
    *
    * \returns Raycasted update grid
    */
   bool raycastPointCloud(const PointCloudT::ConstPtr& cloud,
                          const Eigen::Matrix<double, 3, 1>& origin,
                          const double raycast_range,
-                         UpdateGridT::Accessor& update_grid_acc);
+                         UpdateGridT::Accessor& update_grid_acc,
+                         ValueGridT::Accessor& value_grid_acc);
 
   /*!
    * \brief Casts a single ray into an update grid structure
@@ -238,10 +242,11 @@ public:
    * probabilities of all cells specified by the update grid.
    *
    * \param temp_grid Grid containing all cells which shall be updated
+   * \param value_grid Grid containing the new values for the cells
    *
    * \returns Was the insertion of the pointcloud successuff
    */
-  UpdateGridT::Ptr updateMap(const UpdateGridT::Ptr& temp_grid);
+  UpdateGridT::Ptr updateMap(const UpdateGridT::Ptr& temp_grid, const ValueGridT::Ptr& value_grid);
 
   /*!
    * \brief Returns a pointer to the VDB map structure
@@ -359,11 +364,15 @@ public:
 protected:
   virtual bool updateFreeNode(TData& voxel_value, bool& active) { return false; }
   virtual bool updateOccupiedNode(TData& voxel_value, bool& active, const TData& new_value) { return false; }
-  virtual TData craeteVoxelFromPoint(const PointT& p) { return TData(); } 
+  virtual TData craeteVoxelFromRGB(const openvdb::Vec3f& vec) { return TData(); } 
   /*!
    * \brief VDB grid pointer
    */
   typename GridT::Ptr m_vdb_grid;
+  /*!
+   * \brief Temp Value VDB grid pointer
+   */
+  typename ValueGridT::Ptr m_value_grid;
   /*!
    * \brief Maximum raycasting distance
    */
