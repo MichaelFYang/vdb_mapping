@@ -47,8 +47,6 @@
 
 namespace vdb_mapping {
 
-using PointT      = pcl::PointXYZRGB;
-
 /*!
  * \brief Accumulation of configuration parameters
  */
@@ -64,6 +62,7 @@ template <typename TData, typename TConfig = BaseConfig>
 class VDBMapping
 {
 public:
+  using PointT      = pcl::PointXYZRGB;
   using PointCloudT = pcl::PointCloud<PointT>;
 
   using RayT  = openvdb::math::Ray<double>;
@@ -127,8 +126,9 @@ public:
    *
    * \param update_grid Update grid
    * \param overwrite_grid Overwrite grid
+   * \param value_grid Value grid
    */
-  void integrateUpdate(UpdateGridT::Ptr& update_grid, UpdateGridT::Ptr& overwrite_grid);
+  void integrateUpdate(UpdateGridT::Ptr& update_grid, UpdateGridT::Ptr& overwrite_grid, ValueGridT::Ptr& value_grid);
 
   /*!
    * \brief Resets the updates grid
@@ -155,13 +155,15 @@ public:
    * \param origin Sensor position in map coordinates
    * \param update_grid Update grid that was created internally while mapping
    * \param overwrite_grid Overwrite grid containing all changed voxel indices
+   * \param value_grid Value grid containing all changed voxel values
    *
    * \returns Was the insertion of the new pointcloud successful
    */
   bool insertPointCloud(const PointCloudT::ConstPtr& cloud,
                         const Eigen::Matrix<double, 3, 1>& origin,
                         UpdateGridT::Ptr& update_grid,
-                        UpdateGridT::Ptr& overwrite_grid);
+                        UpdateGridT::Ptr& overwrite_grid,
+                        ValueGridT::Ptr& value_grid);
 
   /*!
    * \brief  Raycasts a Pointcloud into an update Grid
@@ -318,8 +320,24 @@ public:
    *
    * \returns Grid/UpdateGrid containing the information within the bounding box
    */
-  template <typename TResultGrid>
-  typename TResultGrid::Ptr
+
+  typename UpdateGridT::Ptr
+  getUpdateMapSection(const Eigen::Matrix<double, 3, 1>& min_boundary,
+                const Eigen::Matrix<double, 3, 1>& max_boundary,
+                const Eigen::Matrix<double, 4, 4>& map_to_reference_tf) const;
+
+    /*!
+   * \brief Generates a grid or update grid from a bounding box and a reference frame
+   *
+   * @tparam TResultGrid Resulting Grid Type
+   * \param min_boundary Minimum boundary of the box
+   * \param max_boundary Maximum boundary of the box
+   * \param map_to_reference_tf Transform from map to reference frame
+   *
+   * \returns Grid/UpdateGrid containing the information within the bounding box
+   */
+
+  typename GridT::Ptr
   getMapSection(const Eigen::Matrix<double, 3, 1>& min_boundary,
                 const Eigen::Matrix<double, 3, 1>& max_boundary,
                 const Eigen::Matrix<double, 4, 4>& map_to_reference_tf) const;

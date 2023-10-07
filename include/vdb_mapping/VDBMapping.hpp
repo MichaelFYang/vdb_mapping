@@ -175,8 +175,7 @@ VDBMapping<TData, TConfig>::getMapSectionUpdateGrid(
   const Eigen::Matrix<double, 3, 1>& max_boundary,
   const Eigen::Matrix<double, 4, 4>& map_to_reference_tf) const
 {
-  return getMapSection<typename VDBMapping<TData, TConfig>::UpdateGridT>(
-    min_boundary, max_boundary, map_to_reference_tf);
+  return getUpdateMapSection(min_boundary, max_boundary, map_to_reference_tf);
 }
 
 template <typename TData, typename TConfig>
@@ -185,21 +184,49 @@ typename VDBMapping<TData, TConfig>::GridT::Ptr VDBMapping<TData, TConfig>::getM
   const Eigen::Matrix<double, 3, 1>& max_boundary,
   const Eigen::Matrix<double, 4, 4>& map_to_reference_tf) const
 {
-  return getMapSection<typename VDBMapping<TData, TConfig>::GridT>(
-    min_boundary, max_boundary, map_to_reference_tf);
+  return getMapSection(min_boundary, max_boundary, map_to_reference_tf);
 }
 
 template <typename TData, typename TConfig>
-template <typename TResultGrid>
-typename TResultGrid::Ptr VDBMapping<TData, TConfig>::getMapSection(
+typename VDBMapping<TData, TConfig>::GridT::Ptr VDBMapping<TData, TConfig>::getMapSection(
   const Eigen::Matrix<double, 3, 1>& min_boundary,
   const Eigen::Matrix<double, 3, 1>& max_boundary,
   const Eigen::Matrix<double, 4, 4>& map_to_reference_tf) const
 {
-  typename TResultGrid::Ptr temp_grid = TResultGrid::create(false);
+  typename GridT::Ptr temp_grid = GridT::create(TData());
   temp_grid->setTransform(openvdb::math::Transform::createLinearTransform(m_resolution));
 
-  typename TResultGrid::Accessor temp_acc = temp_grid->getAccessor();
+  typename GridT::Accessor temp_acc = temp_grid->getAccessor();
+
+  openvdb::CoordBBox bounding_box(
+    createIndexBoundingBox(min_boundary, max_boundary, map_to_reference_tf));
+
+  for (auto iter = m_vdb_grid->cbeginValueOn(); iter; ++iter)
+  {
+    if (bounding_box.isInside(iter.getCoord()))
+    {
+      temp_acc.setValueOn(iter.getCoord(), *iter);
+    }
+  }
+
+  openvdb::Vec3d min(bounding_box.min().x(), bounding_box.min().y(), bounding_box.min().z());
+  openvdb::Vec3d max(bounding_box.max().x(), bounding_box.max().y(), bounding_box.max().z());
+  temp_grid->insertMeta("bb_min", openvdb::Vec3DMetadata(min));
+  temp_grid->insertMeta("bb_max", openvdb::Vec3DMetadata(max));
+  return temp_grid;
+}
+
+
+template <typename TData, typename TConfig>
+typename VDBMapping<TData, TConfig>::UpdateGridT::Ptr VDBMapping<TData, TConfig>::getUpdateMapSection(
+  const Eigen::Matrix<double, 3, 1>& min_boundary,
+  const Eigen::Matrix<double, 3, 1>& max_boundary,
+  const Eigen::Matrix<double, 4, 4>& map_to_reference_tf) const
+{
+  typename UpdateGridT::Ptr temp_grid = UpdateGridT::create(false);
+  temp_grid->setTransform(openvdb::math::Transform::createLinearTransform(m_resolution));
+
+  typename UpdateGridT::Accessor temp_acc = temp_grid->getAccessor();
 
   openvdb::CoordBBox bounding_box(
     createIndexBoundingBox(min_boundary, max_boundary, map_to_reference_tf));
@@ -264,18 +291,20 @@ bool VDBMapping<TData, TConfig>::insertPointCloud(const PointCloudT::ConstPtr& c
 {
   UpdateGridT::Ptr update_grid;
   UpdateGridT::Ptr overwrite_grid;
+  ValueGridT::Ptr value_grid;
 
-  return insertPointCloud(cloud, origin, update_grid, overwrite_grid);
+  return insertPointCloud(cloud, origin, update_grid, overwrite_grid, value_grid);
 }
 
 template <typename TData, typename TConfig>
 bool VDBMapping<TData, TConfig>::insertPointCloud(const PointCloudT::ConstPtr& cloud,
                                                   const Eigen::Matrix<double, 3, 1>& origin,
                                                   UpdateGridT::Ptr& update_grid,
-                                                  UpdateGridT::Ptr& overwrite_grid)
+                                                  UpdateGridT::Ptr& overwrite_grid,
+                                                  ValueGridT::Ptr& value_grid)
 {
   accumulateUpdate(cloud, origin, m_max_range);
-  integrateUpdate(update_grid, overwrite_grid);
+  integrateUpdate(update_grid, overwrite_grid, value_grid);
   resetUpdate();
   return true;
 }
@@ -299,10 +328,12 @@ void VDBMapping<TData, TConfig>::accumulateUpdate(const PointCloudT::ConstPtr& c
 
 template <typename TData, typename TConfig>
 void VDBMapping<TData, TConfig>::integrateUpdate(UpdateGridT::Ptr& update_grid,
-                                                 UpdateGridT::Ptr& overwrite_grid)
+                                                 UpdateGridT::Ptr& overwrite_grid,
+                                                 ValueGridT::Ptr& value_grid)
 {
-  overwrite_grid = updateMap(m_update_grid);
+  overwrite_grid = updateMap(m_update_grid, m_value_grid);
   update_grid    = m_update_grid;
+  value_grid     = m_value_grid;
 }
 
 template <typename TData, typename TConfig>
@@ -443,21 +474,22 @@ VDBMapping<TData, TConfig>::updateMap(const UpdateGridT::Ptr& temp_grid, const V
   bool state_changed           = false;
   typename GridT::Accessor acc = m_vdb_grid->getAccessor();
 
-  TData new_value;
+  
   // Probability update lambda for free space grid elements
   auto miss = [&](TData& voxel_value, bool& active) {
     bool last_state = active;
-    updateFreeNode(voxel_value, active, new_value);
+    updateFreeNode(voxel_value, active);
     if (last_state != active)
     {
       state_changed = true;
     }
   };
 
+  TData new_value;
   // Probability update lambda for occupied grid elements
   auto hit = [&](TData& voxel_value, bool& active) {
     bool last_state = active;
-    updateOccupiedNode(voxel_value, active);
+    updateOccupiedNode(voxel_value, active, new_value);
     if (last_state != active)
     {
       state_changed = true;

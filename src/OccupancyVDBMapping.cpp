@@ -33,13 +33,13 @@ namespace vdb_mapping {
 
 bool OccupancyVDBMapping::updateFreeNode(Voxel& voxel_value, bool& active)
 {
-  voxel_value[0][0] += m_logodds_miss;
-  if (voxel_value[0][0] < m_logodds_thres_min)
+  voxel_value[0] += m_logodds_miss;
+  if (voxel_value[0] < m_logodds_thres_min)
   {
     active = false;
-    if (voxel_value[0][0] < m_min_logodds)
+    if (voxel_value[0] < m_min_logodds)
     {
-      voxel_value[0][0] = m_min_logodds;
+      voxel_value[0] = m_min_logodds;
     }
   }
   return true;
@@ -47,13 +47,13 @@ bool OccupancyVDBMapping::updateFreeNode(Voxel& voxel_value, bool& active)
 
 bool OccupancyVDBMapping::updateOccupiedNode(Voxel& voxel_value, bool& active, const Voxel& new_value)
 {
-  voxel_value[0][0] += m_logodds_hit;
-  if (voxel_value[0][0] > m_logodds_thres_max)
+  voxel_value[0] += m_logodds_hit;
+  if (voxel_value[0] > m_logodds_thres_max)
   {
     active = true;
-    if (voxel_value[0][0] > m_max_logodds)
+    if (voxel_value[0] > m_max_logodds)
     {
-      voxel_value[0][0] = m_max_logodds;
+      voxel_value[0] = m_max_logodds;
     }
     updateVoxelField(voxel_value, new_value);
   }
@@ -69,18 +69,25 @@ Voxel OccupancyVDBMapping::craeteVoxelFromRGB(const openvdb::Vec3f& vec)
   {
     return voxel; // no color information
   }
-  voxel[0][1] = vec[0] / s * 3.0;
-  voxel[0][2] = vec[1] / s * 3.0;
-  voxel[0][3] = vec[2] / s * 3.0;
+  voxel[1] = vec[0] / s * 3.0;
+  voxel[2] = vec[1] / s * 3.0;
+  voxel[3] = vec[2] / s * 3.0;
   return voxel;
 }
 
 void OccupancyVDBMapping::updateVoxelField(Voxel& cur_voxel, const Voxel& new_voxel)
 {
-  // average the color information
-  cur_voxel[0][1] = (cur_voxel[0][1] + new_voxel[0][1]) / 2.0;
-  cur_voxel[0][2] = (cur_voxel[0][2] + new_voxel[0][2]) / 2.0;
-  cur_voxel[0][3] = (cur_voxel[0][3] + new_voxel[0][3]) / 2.0;
+  if (cur_voxel[1] + cur_voxel[2] + cur_voxel[3] < 1e-5)
+  {
+    cur_voxel[1] = new_voxel[1];
+    cur_voxel[2] = new_voxel[2];
+    cur_voxel[3] = new_voxel[3];
+  } else {
+    // average the color information
+    cur_voxel[1] = (cur_voxel[1] + new_voxel[1]) / 2.0;
+    cur_voxel[2] = (cur_voxel[2] + new_voxel[2]) / 2.0;
+    cur_voxel[3] = (cur_voxel[3] + new_voxel[3]) / 2.0;
+  }
 }
 
 void OccupancyVDBMapping::setConfig(const Config& config)

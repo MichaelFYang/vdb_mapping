@@ -43,7 +43,7 @@ struct Config : BaseConfig
   double prob_thres_max;
 };
 
-using Voxel = openvdb::Mat4s;
+using Voxel = openvdb::Vec4f;
 
 class OccupancyVDBMapping : public VDBMapping<Voxel, Config>
 {
