@@ -31,34 +31,57 @@
 
 namespace vdb_mapping {
 
-bool OccupancyVDBMapping::updateFreeNode(float& voxel_value, bool& active)
+bool OccupancyVDBMapping::updateFreeNode(Voxel& voxel_value, bool& active)
 {
-  voxel_value += m_logodds_miss;
-  if (voxel_value < m_logodds_thres_min)
+  voxel_value[0][0] += m_logodds_miss;
+  if (voxel_value[0][0] < m_logodds_thres_min)
   {
     active = false;
-    if (voxel_value < m_min_logodds)
+    if (voxel_value[0][0] < m_min_logodds)
     {
-      voxel_value = m_min_logodds;
+      voxel_value[0][0] = m_min_logodds;
     }
   }
   return true;
 }
 
-bool OccupancyVDBMapping::updateOccupiedNode(float& voxel_value, bool& active)
+bool OccupancyVDBMapping::updateOccupiedNode(Voxel& voxel_value, bool& active, const Voxel& new_value)
 {
-  voxel_value += m_logodds_hit;
-  if (voxel_value > m_logodds_thres_max)
+  voxel_value[0][0] += m_logodds_hit;
+  if (voxel_value[0][0] > m_logodds_thres_max)
   {
     active = true;
-    if (voxel_value > m_max_logodds)
+    if (voxel_value[0][0] > m_max_logodds)
     {
-      voxel_value = m_max_logodds;
+      voxel_value[0][0] = m_max_logodds;
     }
+    updateVoxelField(voxel_value, new_value);
   }
   return true;
 }
 
+Voxel OccupancyVDBMapping::craeteVoxelFromPoint(const PointT& point)
+{
+  Voxel voxel;
+  voxel.setZero();
+  const float s = (point.r + point.g + point.b);
+  if (s < 1e-5)
+  {
+    return voxel; // no color information
+  }
+  voxel[0][1] = point.r / s * 3.0;
+  voxel[0][2] = point.g / s * 3.0;
+  voxel[0][3] = point.b / s * 3.0;
+  return voxel;
+}
+
+void OccupancyVDBMapping::updateVoxelField(Voxel& cur_voxel, const Voxel& new_voxel)
+{
+  // average the color information
+  cur_voxel[0][1] = (cur_voxel[0][1] + new_voxel[0][1]) / 2.0;
+  cur_voxel[0][2] = (cur_voxel[0][2] + new_voxel[0][2]) / 2.0;
+  cur_voxel[0][3] = (cur_voxel[0][3] + new_voxel[0][3]) / 2.0;
+}
 
 void OccupancyVDBMapping::setConfig(const Config& config)
 {

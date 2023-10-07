@@ -47,6 +47,7 @@
 
 namespace vdb_mapping {
 
+using PointT      = pcl::PointXYZRGB;
 
 /*!
  * \brief Accumulation of configuration parameters
@@ -63,7 +64,6 @@ template <typename TData, typename TConfig = BaseConfig>
 class VDBMapping
 {
 public:
-  using PointT      = pcl::PointXYZ;
   using PointCloudT = pcl::PointCloud<PointT>;
 
   using RayT  = openvdb::math::Ray<double>;
@@ -358,7 +358,8 @@ public:
 
 protected:
   virtual bool updateFreeNode(TData& voxel_value, bool& active) { return false; }
-  virtual bool updateOccupiedNode(TData& voxel_value, bool& active) { return false; }
+  virtual bool updateOccupiedNode(TData& voxel_value, bool& active, const TData& new_value) { return false; }
+  virtual TData craeteVoxelFromPoint(const PointT& p) { return TData(); } 
   /*!
    * \brief VDB grid pointer
    */

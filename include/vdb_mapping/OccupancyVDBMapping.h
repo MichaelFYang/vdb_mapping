@@ -43,11 +43,13 @@ struct Config : BaseConfig
   double prob_thres_max;
 };
 
-class OccupancyVDBMapping : public VDBMapping<float, Config>
+using Voxel = openvdb::Mat4s;
+
+class OccupancyVDBMapping : public VDBMapping<Voxel, Config>
 {
 public:
   OccupancyVDBMapping(const double resolution)
-    : VDBMapping<float, Config>(resolution)
+    : VDBMapping<Voxel, Config>(resolution)
   {
   }
 
@@ -59,8 +61,11 @@ public:
   void setConfig(const Config& config) override;
 
 protected:
-  bool updateFreeNode(float& voxel_value, bool& active) override;
-  bool updateOccupiedNode(float& voxel_value, bool& active) override;
+  bool updateFreeNode(Voxel& voxel_value, bool& active) override;
+  bool updateOccupiedNode(Voxel& voxel_value, bool& active, const Voxel& new_value) override;
+  Voxel craeteVoxelFromPoint(const PointT& p) override;
+
+  void updateVoxelField(Voxel& cur_voxel, const Voxel& new_voxel);
 
   /*!
    * \brief Probability update value for passing an obstacle

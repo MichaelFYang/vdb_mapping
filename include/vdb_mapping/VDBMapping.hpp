@@ -429,10 +429,13 @@ VDBMapping<TData, TConfig>::updateMap(const UpdateGridT::Ptr& temp_grid)
 
   bool state_changed           = false;
   typename GridT::Accessor acc = m_vdb_grid->getAccessor();
+
+  TData new_value;
+  
   // Probability update lambda for free space grid elements
   auto miss = [&](TData& voxel_value, bool& active) {
     bool last_state = active;
-    updateFreeNode(voxel_value, active);
+    updateFreeNode(voxel_value, active, new_value);
     if (last_state != active)
     {
       state_changed = true;
