@@ -369,19 +369,25 @@ VDBMapping<TData, TConfig>::castRayIntoGrid(const openvdb::Vec3d& ray_origin_wor
                                             const openvdb::Vec3d& ray_end_world,
                                             UpdateGridT::Accessor& update_grid_acc) const
 {
-  openvdb::Vec3d ray_direction = (ray_end_world - ray_origin_world);
+  openvdb::Vec3d sign = ray_end_world - ray_origin_world;
+
+  sign = openvdb::Vec3d(sign.x() > 0 ? 1 : -1, sign.y() > 0 ? 1 : -1, sign.z() > 0 ? 1 : -1);
+
+  openvdb::Vec3d ray_end_world_corrected = ray_end_world - sign * openvdb::Vec3d(m_resolution, m_resolution, m_resolution);
+
+  openvdb::Vec3d ray_direction = (ray_end_world_corrected - ray_origin_world);
 
   RayT ray(ray_origin_index, ray_direction);
   DDAT dda(ray);
 
-  openvdb::Coord ray_end_index = openvdb::Coord::floor(m_vdb_grid->worldToIndex(ray_end_world));
+  openvdb::Coord ray_end_index = openvdb::Coord::floor(m_vdb_grid->worldToIndex(ray_end_world_corrected));
 
   while (dda.voxel() != ray_end_index)
   {
     update_grid_acc.setActiveState(dda.voxel(), true);
     dda.step();
   }
-  return dda.voxel();
+  return dda.voxel() + openvdb::Coord::round(sign);
 }
 
 template <typename TData, typename TConfig>
