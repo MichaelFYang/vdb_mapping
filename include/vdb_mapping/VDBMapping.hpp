@@ -350,9 +350,12 @@ bool VDBMapping<TData, TConfig>::raycastPointCloud(const PointCloudT::ConstPtr& 
       ray_end_world = ray_origin_world + (ray_end_world - ray_origin_world).unit() * raycast_range;
       max_range_ray = true;
     }
-
-    openvdb::Coord ray_end_index =
-      castRayIntoGrid(ray_origin_world, ray_origin_index, ray_end_world, update_grid_acc);
+    openvdb::Coord ray_end_index = openvdb::Coord::round(m_vdb_grid->worldToIndex(ray_end_world));
+    
+    if (!m_static_env)
+    {
+      ray_end_index = castRayIntoGrid(ray_origin_world, ray_origin_index, ray_end_world, update_grid_acc);
+    }
 
     if (!max_range_ray)
     {
@@ -371,7 +374,10 @@ VDBMapping<TData, TConfig>::castRayIntoGrid(const openvdb::Vec3d& ray_origin_wor
 {
   openvdb::Vec3d sign = ray_end_world - ray_origin_world;
 
-  sign = openvdb::Vec3d(sign.x() > 0 ? 1 : -1, sign.y() > 0 ? 1 : -1, sign.z() > 0 ? 1 : -1);
+  // lambda function to map a value to 0 if abs(value) < m_resolution, elif value>0 to 1 and elif value<0 to -1
+  auto signum = [&](double val) { return val < -m_resolution ? -1 : val > m_resolution ? 1 : 0; };
+
+  sign = openvdb::Vec3d(signum(sign.x()), signum(sign.y()), signum(sign.z()));
 
   openvdb::Vec3d ray_end_world_corrected = ray_end_world - sign * openvdb::Vec3d(m_resolution, m_resolution, m_resolution);
 
@@ -507,5 +513,6 @@ void VDBMapping<TData, TConfig>::setConfig(const TConfig& config)
   }
   m_max_range          = config.max_range;
   m_map_directory_path = config.map_directory_path;
+  m_static_env         = config.static_env;
   m_config_set         = true;
 }

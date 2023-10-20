@@ -360,6 +360,11 @@ protected:
   virtual bool updateFreeNode(TData& voxel_value, bool& active) { return false; }
   virtual bool updateOccupiedNode(TData& voxel_value, bool& active) { return false; }
   /*!
+   * \brief static environment probability update value for passing an obstacle
+   */
+  bool m_static_env;
+
+  /*!
    * \brief VDB grid pointer
    */
   typename GridT::Ptr m_vdb_grid;

@@ -41,6 +41,7 @@ struct Config : BaseConfig
   double prob_miss;
   double prob_thres_min;
   double prob_thres_max;
+  bool   static_env;
 };
 
 class OccupancyVDBMapping : public VDBMapping<float, Config>
